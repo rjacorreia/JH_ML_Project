@@ -1,0 +1,1 @@
+This repository contains the necessary files to the project writeup and submission of Johns Hopkins Practical Machine Learning Course on Coursera.

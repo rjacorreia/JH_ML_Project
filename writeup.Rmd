@@ -1,0 +1,106 @@
+---
+title: "Practical Machine Learning - Course Writeup"
+author: "Ricardo Correia"
+date: "Tuesday, September 22, 2015"
+output: html_document
+---
+
+###Scope
+
+Paraphrasing the Assignment's Background:
+
+"Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: <http://groupware.les.inf.puc-rio.br/ha0r> (see the section on the Weight Lifting Exercise Dataset)."
+
+
+The goal of this writeup is to use data from accelerometers to predict the manner in which they did the exercise.
+
+###Importing and Exploring Data
+```{r, echo=TRUE, cache=TRUE}
+#assumes that the files are already on the working directory
+raw_data <- read.csv('pml-training.csv')
+
+dim(raw_data)
+
+#Using one column example to justify the choice below.
+summary(raw_data$kurtosis_roll_belt)
+
+```
+Data, as it is, is full of NA's and missing values (e.g. **kurtosis_roll_belt**). The columns where we can observe this lack of quality have only some residuals values so, we will discard these columns for the purpose of this assignment.
+
+```{r, echo=TRUE, cache=TRUE}
+raw_data <- read.csv('pml-training.csv', na.strings = c("NA", ""))
+NA_number <- apply(raw_data, 2, function(x) { sum(is.na(x)) })
+raw_data <- raw_data[, which(NA_number == 0)]
+#removing first column, which is only a sequential number of records.
+raw_data <- raw_data[, -1]
+dim(raw_data)
+```
+We reduced the number of features from **160** to **59**.
+
+Since the dataset is relatively big and hence, time consuming, I will only use a very small portion of the training data (not using the standard values mentioned in the lectures) just to show the algorithm in action.
+```{r, echo=TRUE, cache=TRUE}
+library(caret)
+
+#setting the seed for reproducibility
+set.seed(150922)
+
+#30% of the original training set
+data_partition<-createDataPartition(y=raw_data$classe, p=0.3, list=FALSE)
+
+train_data<-raw_data[data_partition, ]
+```
+
+
+###Algorithm Development
+Since Random Forests has a reputation of being one of the top algorithms for predictions, this will be the method that I will adopt.  
+In terms of cross-validation, I will use k-fold cross validation, using **k = 4**.
+
+
+```{r, echo=TRUE, cache=TRUE}
+# Fit the model using Random Forests algorithm
+model_fit <- train(classe ~.,
+                data = train_data,
+                method="rf",
+                trControl = trainControl(method = "cv", number = 4),
+                prox = TRUE,
+                allowParallel = TRUE)
+
+model_fit
+```
+
+Since the final value used for the model was mtry = 41, we can conclude that the **accuracy** of the model is **0.995**.  
+This also means that the **out of sample error** is **0.005**.
+
+With this rate of out of sample error, we expect that this algorithm will produce a good set of predictions.
+
+
+```{r}
+model_fit$finalModel
+```
+
+Checking the Confusion Matrix, we can also understand that the number of misclassified classes is very low.
+
+###Predictions
+
+```{r}
+# Loading test data
+test_data = read.csv("pml-testing.csv",na.strings=c("NA",""))
+test_data <- test_data[, which(NA_number == 0)]
+
+# Running the predictions
+pred <- predict(model_fit, newdata = test_data)
+
+# Writing to files function
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+
+pml_write_files(pred)
+pred
+```
+
+The model predicted with sucess the 20 test cases.
